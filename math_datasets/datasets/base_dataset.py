@@ -1,7 +1,9 @@
 import re
+from abc import ABC, abstractmethod
+from datasets.dataset_dict import DatasetDict
 
 
-class Dataset:
+class Dataset(ABC):
     prompt = None
     answer = None
     name = None
@@ -10,14 +12,22 @@ class Dataset:
     examples = None
     
     @classmethod
-    def get_dataset(cls):
+    @abstractmethod
+    def get_dataset(cls) -> DatasetDict:
         raise NotImplementedError("Subclasses should implement this method.")
     
     @classmethod
-    def get_prompt(cls, example):
+    @abstractmethod
+    def get_input_text(cls, example):
         raise NotImplementedError("Subclasses should implement this method.")
     
     @classmethod
+    @abstractmethod
+    def get_output_text(cls, example) -> str:  
+        pass
+    
+    @classmethod
+    @abstractmethod
     def get_float_answer(cls, example):
         raise NotImplementedError("Subclasses should implement this method.")
     
@@ -34,6 +44,7 @@ class Dataset:
             return None
         
     @classmethod
+    @abstractmethod
     def is_answer_correct(cls, entry: dict, use_transformated_answers:bool=True) -> bool:
         raise NotImplementedError("Subclasses should implement this method.")
     
@@ -43,9 +54,12 @@ class Dataset:
         cls.examples = None
 
     @classmethod
-    def get_example_for(cls, example):
-        raise NotImplementedError("Subclasses should implement this method.")
-    
+    @abstractmethod
+    def format_input_evaluate(cls, example, prompt_prefix="") -> str:
+        pass
+
     @classmethod
-    def load_examples(cls, num_examples_per_category=5):
-        raise NotImplementedError("Subclasses should implement this method.")
+    @abstractmethod
+    def load_and_tokenize_dataset(cls, tokenizer) -> DatasetDict:
+        pass
+

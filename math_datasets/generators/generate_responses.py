@@ -38,7 +38,7 @@ def generate_responses(dataset: Dataset, model_name: str, generator:Generate, sa
 
     with open(output_path, "a") as f:
         for i in tqdm(ds[dataset_split].select(range(start_idx, len(ds[dataset_split])))):
-            prompt = dataset.get_prompt(i)
+            prompt = dataset.get_input_text(i)
             response = generator.generate(prompt, i)
             i["response"] = response
             f.write(json.dumps(i) + "\n")

@@ -1,5 +1,5 @@
-from math_datasets import Dataset
-from math_datasets.generator import get_output_file
+from math_datasets.datasets.base_dataset import Dataset
+from math_datasets.generators.generate_responses import get_output_file
 import json
 import numpy as np
 import pandas as pd

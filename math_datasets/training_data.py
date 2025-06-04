@@ -1,5 +1,5 @@
 import pandas as pd
-from .base_dataset import Dataset
+from .datasets.base_dataset import Dataset
 from .evaluator import evaluate_detail
 from typing import Callable
 

@@ -1,5 +1,5 @@
 from math_datasets import Dataset
-from math_datasets.generator import get_output_file, OllamaGenerate
+from math_datasets.generators import get_output_file, OllamaGenerate
 import json
 from tqdm import tqdm
 
