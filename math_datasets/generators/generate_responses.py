@@ -1,7 +1,7 @@
 import json
 from tqdm import tqdm
 import os
-from math_datasets import Dataset
+from math_datasets.datasets.base_dataset import Dataset
 from .generator import Generate
 from typing import Literal
 

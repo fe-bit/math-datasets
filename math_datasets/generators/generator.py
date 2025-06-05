@@ -53,13 +53,13 @@ class TransformersGenerate(Generate):
         self._tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         self._tokenizer.pad_token = self._tokenizer.eos_token
         
+        device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
         self._model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.bfloat16,
-            trust_remote_code=True
+            trust_remote_code=True,
+            device_map=device
         )
-        device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
-        self._model.to(device)
 
         self.temperature = temperature
         self.top_k = top_k
@@ -88,11 +88,13 @@ class TransformersGenerate(Generate):
         response = self._tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
         output_token_count = generated_tokens.shape[0]
         total_token_count = input_token_count + output_token_count
+        
         entry["usage_metadata"] = {
             "input_tokens": input_token_count,
             "output_tokens": output_token_count,
             "total_tokens": total_token_count,
         }
+        
         return response
     
     def merge_with_peft(self, checkpoint_path: str):
