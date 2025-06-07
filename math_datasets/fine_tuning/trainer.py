@@ -1,7 +1,10 @@
-from transformers import Trainer, TrainingArguments
+from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from peft import LoraConfig
 from math_datasets.datasets import Dataset
 from .llm import LLM
+from .llm.utils import get_latest_checkpoint_dir
+import os
+from trl import SFTTrainer
 
 
 class CustomTrainer:
@@ -48,17 +51,25 @@ class CustomTrainer:
                 report_to="none",
             )
         
+        os.makedirs(output_dir, exist_ok=True)
         with open(f"{output_dir}/training_args.json", "w") as f:
             f.write(training_args.to_json_string())
 
-        # === Trainer Setup ===
-        trainer = Trainer(
+        data_collator = DataCollatorForLanguageModeling(tokenizer=llm.tokenizer, mlm=False)
+
+        trainer = SFTTrainer(
             model=llm.model,
-            args=training_args,
             train_dataset=tokenized_dataset["train"],
             eval_dataset=tokenized_dataset["test"],
+            args=training_args,
+            data_collator=data_collator,
+            formatting_func=None,  # already pre-tokenized
         )
 
-        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        if resume_from_checkpoint:
+            trainer.train(resume_from_checkpoint=get_latest_checkpoint_dir(output_dir=output_dir))
+        else:
+            trainer.train()
+            
         trainer.save_model(output_dir)
         llm.tokenizer.save_pretrained(output_dir)
