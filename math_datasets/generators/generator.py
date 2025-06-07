@@ -33,19 +33,28 @@ class OllamaGenerate(Generate):
 
 
 class GeminiGenerate(Generate):
-    def __init__(self, model_name="gemini-2.0-flash", wait_frequency=5):
+    def __init__(self, model_name="gemini-2.0-flash", wait_frequency=5, num_retries: int|None=None):
         self.model_name = model_name
         self.client = genai.Client()
         self.wait_frequency = wait_frequency
+        self.num_retries = num_retries
     
     def generate(self, prompt:str,  entry: dict[str, str]={}) -> str:
-        time.sleep(self.wait_frequency)
-        response = self.client.models.generate_content(
-            model=self.model_name, contents=prompt
-        )
-        entry["usage_metadata"] = response.usage_metadata.model_dump()
-        return response.text
+        num_retries = self.num_retries
+        while num_retries is None or num_retries > 0:
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name, contents=prompt
+                )
+                time.sleep(self.wait_frequency)
+                entry["usage_metadata"] = response.usage_metadata.model_dump()
+                return response.text
+            except:
+                if num_retries is not None:
+                    num_retries -= 1
+                time.sleep(self.wait_frequency*2)
 
+        return "Error occured."
 
 class TransformersGenerate(Generate):
     def __init__(self, model_name: str, temperature=None, top_k=None, top_p=None, max_new_tokens=512):
