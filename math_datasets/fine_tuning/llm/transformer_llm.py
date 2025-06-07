@@ -4,6 +4,21 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import LoraConfig, get_peft_model
 from peft import PeftModel
+import os
+
+
+if torch.cuda.is_available():
+    print("CUDA is available! Using GPU.")
+    print(f"Number of GPUs: {torch.cuda.device_count()}")
+    print(f"Current CUDA device: {torch.cuda.current_device()}")
+    print(f"Device name: {torch.cuda.get_device_name(0)}")
+elif torch.backends.mps.is_available():
+    print("MPS (Metal Performance Shaders) is available! Using Apple Silicon GPU.")
+else:
+    print("CUDA is not available. Using CPU.")
+    num_threads = int(os.environ.get("SLURM_CPUS_PER_TASK", 1)) # Default to 1 if not in Slurm
+    torch.set_num_threads(num_threads)
+    print(f"PyTorch using {torch.get_num_threads()} CPU threads.")
 
 
 class TransformerLLM(LLM):
