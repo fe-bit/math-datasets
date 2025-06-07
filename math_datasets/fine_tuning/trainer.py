@@ -8,26 +8,15 @@ from trl import SFTTrainer
 
 
 class CustomTrainer:
-    def apply_lora(self, llm: LLM):
-        lora_config = LoraConfig(
-            r=8,
-            lora_alpha=16,
-            lora_dropout=0.05,
-            target_modules=[
-                "q_proj", "k_proj", "v_proj", # "o_proj", 
-                "gate_proj", "up_proj", "down_proj"
-            ],
-            task_type="CAUSAL_LM",
-            bias="lora_only"
-        )
+    def apply_lora(self, llm: LLM, lora_config: LoraConfig):
         llm.apply_lora(lora_config)
         print("LoRA applied.")
 
-    def train(self, llm: LLM, output_dir: str, dataset: Dataset, resume_from_checkpoint: bool = False, training_args: TrainingArguments = None, apply_lora: bool = True):
+    def train(self, llm: LLM, output_dir: str, dataset: Dataset, resume_from_checkpoint: bool = False, training_args: TrainingArguments|None = None, lora_config: LoraConfig|None = None):
         tokenized_dataset = dataset.load_and_tokenize_dataset(llm.tokenizer)
 
-        if apply_lora:
-            self.apply_lora(llm)
+        if lora_config is not None:
+            self.apply_lora(llm, lora_config)
 
         if training_args is None:
             training_args = TrainingArguments(
