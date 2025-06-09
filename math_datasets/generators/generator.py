@@ -5,6 +5,7 @@ import time
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM
 import torch
 from peft import PeftModel
+from math_datasets.fine_tuning.llm.transformer_llm import TransformerLLM
 
 
 class Generate:
@@ -52,23 +53,13 @@ class GeminiGenerate(Generate):
             except:
                 if num_retries is not None:
                     num_retries -= 1
-                time.sleep(self.wait_frequency*2)
+                time.sleep(self.wait_frequency*10)
 
         return "Error occured."
 
 class TransformersGenerate(Generate):
-    def __init__(self, model_name: str, temperature=None, top_k=None, top_p=None, max_new_tokens=512):
-        self.model_name = model_name
-        self._tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-        self._tokenizer.pad_token = self._tokenizer.eos_token
-        
-        device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
-        self._model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.bfloat16,
-            trust_remote_code=True,
-            device_map=device
-        )
+    def __init__(self, model: TransformerLLM, temperature=None, top_k=None, top_p=None, max_new_tokens=512):
+        self.model = model
 
         self.temperature = temperature
         self.top_k = top_k
@@ -76,36 +67,11 @@ class TransformersGenerate(Generate):
         self.max_new_tokens = max_new_tokens
         
     def generate(self, prompt: str, entry: dict[str, str] = {}) -> str:
-        prompt = "<|im_start|>user\n" + prompt + "<|im_end|>\n<|im_start|>assistant\n"
-        inputs = self._tokenizer(prompt, return_tensors="pt")
-        inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
-
-        input_token_count = inputs["input_ids"].shape[1]
-
-        with torch.no_grad():
-            outputs = self._model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                temperature=self.temperature,
-                do_sample=self.temperature is not None and self.temperature > 0,
-                top_k=self.top_k,
-                top_p=self.top_p,
-                pad_token_id=self._tokenizer.eos_token_id,
-                eos_token_id=self._tokenizer.convert_tokens_to_ids("<|im_end|>"),
-            )
-        generated_tokens = outputs[0][input_token_count:]
-        response = self._tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
-        output_token_count = generated_tokens.shape[0]
-        total_token_count = input_token_count + output_token_count
-        
-        entry["usage_metadata"] = {
-            "input_tokens": input_token_count,
-            "output_tokens": output_token_count,
-            "total_tokens": total_token_count,
-        }
-        
-        return response
-    
-    def merge_with_peft(self, checkpoint_path: str):
-        self._model = PeftModel.from_pretrained(self._model, checkpoint_path)
-        self._model = self._model.merge_and_unload()
+        return self.model.generate(
+            text=prompt,
+            max_new_tokens=self.max_new_tokens,
+            temperature=self.temperature,
+            top_k=self.top_k,
+            top_p=self.top_p,
+            entry=entry
+        )
