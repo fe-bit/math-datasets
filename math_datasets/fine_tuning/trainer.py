@@ -1,58 +1,32 @@
-from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
+from transformers import TrainingArguments
+from transformers.trainer_callback import TrainerCallback
 from peft import LoraConfig
 from math_datasets.datasets import Dataset
 from .llm import LLM
 from .llm.utils import get_latest_checkpoint_dir
 import os
-from trl import SFTTrainer
+from trl import SFTTrainer, SFTConfig
+from transformers import EarlyStoppingCallback
+from math_datasets.fine_tuning.metrics.compute_metrics import get_compute_metrics
 
 
 class CustomTrainer:
-    def apply_lora(self, llm: LLM, lora_config: LoraConfig):
-        llm.apply_lora(lora_config)
-        print("LoRA applied.")
-
-    def train(self, llm: LLM, output_dir: str, dataset: Dataset, resume_from_checkpoint: bool = False, training_args: TrainingArguments|None = None, lora_config: LoraConfig|None = None):
+    def train(self, llm: LLM, output_dir: str, dataset: Dataset, resume_from_checkpoint: bool, training_args: TrainingArguments, lora_config: LoraConfig|None = None):
         tokenized_dataset = dataset.load_and_tokenize_dataset(llm.tokenizer)
 
-        if lora_config is not None:
-            self.apply_lora(llm, lora_config)
-
-        if training_args is None:
-            training_args = TrainingArguments(
-                output_dir=output_dir,
-                per_device_train_batch_size=1,
-                gradient_accumulation_steps=8,  # More accumulation for better effective batch size
-                num_train_epochs=50,             # More epochs helps for GSM8K
-                learning_rate=5e-5,             # Slightly higher; LoRA is robust to this
-                warmup_steps=20,               # Helps stabilize training
-                weight_decay=0.01,              # Adds regularization
-                max_grad_norm=1.0,              # Prevent exploding gradients
-                lr_scheduler_type="cosine",     # Better than constant
-                logging_steps=100,
-                save_steps=25,
-                save_total_limit=2,
-                eval_strategy="epoch",
-                bf16=True,
-                
-                logging_dir=f"./logs/{llm.model_name}",
-                run_name=llm.model_name,
-                report_to="none",
-            )
-        
+        training_args = SFTConfig(packing=True, **training_args.to_dict())
         os.makedirs(output_dir, exist_ok=True)
         with open(f"{output_dir}/training_args.json", "w") as f:
             f.write(training_args.to_json_string())
 
-        data_collator = DataCollatorForLanguageModeling(tokenizer=llm.tokenizer, mlm=False)
-
         trainer = SFTTrainer(
             model=llm.model,
+            args=training_args,
+            peft_config=lora_config, # is None if not using LoRA
             train_dataset=tokenized_dataset["train"],
             eval_dataset=tokenized_dataset["test"],
-            args=training_args,
-            data_collator=data_collator,
-            formatting_func=None,  # already pre-tokenized
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
+            compute_metrics=get_compute_metrics(llm.tokenizer)
         )
 
         if resume_from_checkpoint:
