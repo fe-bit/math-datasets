@@ -8,7 +8,7 @@ import pandas as pd
 def evaluate_entry(entry, dataset: Dataset, use_transformated_answers:bool=True):
     return dataset.is_answer_correct(entry, use_transformated_answers)
 
-def evaluate(model_name, datasets: list[Dataset], save_dir: str, use_transformated_answers=True):
+def evaluate(model_name, datasets: list[Dataset], save_dir: str, use_transformated_answers=True, use_first_n:int|None=None):
     result = {
         "model": model_name
     }
@@ -24,6 +24,9 @@ def evaluate(model_name, datasets: list[Dataset], save_dir: str, use_transformat
             result[dataset.name] = np.nan
             continue
 
+        if use_first_n is not None:
+            entries = entries[:use_first_n]
+        
         evaluated_entries = []
         for entry in entries:
             try:
@@ -43,10 +46,10 @@ def evaluate(model_name, datasets: list[Dataset], save_dir: str, use_transformat
     
     return result
 
-def evaluate_all(model_names: list[str], datasets: list[Dataset], save_dir: str, use_transformated_answers=True) -> pd.DataFrame:
+def evaluate_all(model_names: list[str], datasets: list[Dataset], save_dir: str, use_transformated_answers=True, use_first_n:int|None=None) -> pd.DataFrame:
     results = []
     for model_name in model_names:
-        result = evaluate(model_name, datasets, save_dir, use_transformated_answers=use_transformated_answers)
+        result = evaluate(model_name, datasets, save_dir, use_transformated_answers=use_transformated_answers, use_first_n=use_first_n)
         results.append(result)
     df = pd.DataFrame(results)
     return df

@@ -9,7 +9,7 @@ from typing import Literal
 def get_output_file(save_dir, model_name: str, dataset: Dataset) -> str:
     return f"{save_dir}/evaluations/{dataset.name}/{model_name}.jsonl"
 
-def generate_responses(dataset: Dataset, model_name: str, generator:Generate, save_dir:str, first_n:int|None=None, dataset_split: Literal["test", "train"]="test"):
+def generate_responses(dataset: Dataset, model_name: str, generator:Generate, save_dir:str, first_n:int|None=None, dataset_split: Literal["test", "train"]="test", overwrite: bool=False):
     ds = dataset.get_dataset()
     output_path = get_output_file(save_dir, model_name, dataset)
     
@@ -19,7 +19,9 @@ def generate_responses(dataset: Dataset, model_name: str, generator:Generate, sa
         else:
             print("Limiting to first", first_n, "samples.")
             ds[dataset_split] = ds[dataset_split].select(range(first_n))
-    
+    if overwrite and os.path.exists(output_path):
+        print(f"🗑️ {model_name}: Overwriting existing evaluation results for {dataset.name}.")
+        os.remove(output_path)
     try:
         with open(output_path, "r") as f:
             start_idx = len([json.loads(line) for line in f])
