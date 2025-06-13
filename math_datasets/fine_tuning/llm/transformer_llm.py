@@ -30,7 +30,6 @@ class TransformerLLM(LLM):
     def __init__(self, model_name: str):
         self.model_name = model_name
         self._tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-        self._tokenizer.eos_token = "<|im_end|>"
         self._tokenizer.pad_token = self._tokenizer.eos_token
         
         self._model = AutoModelForCausalLM.from_pretrained(
@@ -85,9 +84,6 @@ class TransformerLLM(LLM):
             top_p=top_p if temperature is not None else None,
             
             pad_token_id=self._tokenizer.eos_token_id,
-            # For Qwen and similar chat models, <|im_end|> is often the stop token.
-            # Using convert_tokens_to_ids is robust here.
-            eos_token_id=self._tokenizer.convert_tokens_to_ids("<|im_end|>"),
         )
         generated_tokens = outputs[0][inputs["input_ids"].shape[1]:]
         
@@ -100,7 +96,15 @@ class TransformerLLM(LLM):
             "output_tokens": output_token_count,
             "total_tokens": total_token_count,
         }
-        return self._tokenizer.decode(generated_tokens, skip_special_tokens=True)
+
+        answer = self._tokenizer.decode(generated_tokens, skip_special_tokens=True)
+        # Clean up intermediate tensors and flush CUDA cache
+        del inputs, outputs, generated_tokens
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()  # Flush CUDA cache
+            torch.cuda.synchronize()  # Wait for all CUDA operations to complete
+        
+        return answer
 
     @property
     def model(self):
@@ -109,3 +113,9 @@ class TransformerLLM(LLM):
     @property
     def tokenizer(self):
         return self._tokenizer
+    
+    def __del__(self):
+        """Clean up GPU memory when object is destroyed."""
+        if hasattr(self, '_model') and torch.cuda.is_available():
+            del self._model
+            torch.cuda.empty_cache()

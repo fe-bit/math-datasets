@@ -35,13 +35,8 @@ class Dataset(ABC):
     def extract_answer(cls, text):
         numbers = re.findall(r'-?\d+\.?\d*', text)
         if numbers:
-            number = numbers[-1]
-            if ":" in number:
-                a, b = map(int, number.split(':'))
-                number = a / b
-            return float(number)
-        else:
-            return None
+            return float(numbers[-1])
+        return None
         
     @classmethod
     @abstractmethod
