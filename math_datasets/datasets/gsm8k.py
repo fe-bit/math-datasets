@@ -29,7 +29,7 @@ class GSM8K(Dataset):
         return float(example["answer"].split("####")[-1].strip().replace(",", ""))#.replace(",", ".").strip())
     
     @classmethod
-    def is_answer_correct(cls, entry, use_transformated_answers:bool=True) -> bool:
+    def is_answer_correct(cls, entry, use_transformated_answers:bool=False) -> bool:
         if use_transformated_answers:
             answer = entry["extracted_response"]
         else:

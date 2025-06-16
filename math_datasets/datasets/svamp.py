@@ -30,7 +30,7 @@ class SVAMP(Dataset):
         return float(example["Answer"])
     
     @classmethod
-    def is_answer_correct(cls, entry, use_transformated_answers:bool=True) -> bool:
+    def is_answer_correct(cls, entry, use_transformated_answers:bool=False) -> bool:
         if use_transformated_answers:
             answer = entry["extracted_response"]
         else:

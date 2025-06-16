@@ -33,6 +33,8 @@ class Dataset(ABC):
     
     @classmethod
     def extract_answer(cls, text):
+        if isinstance(text, float) or isinstance(text, int):
+            return float(text)
         numbers = re.findall(r'-?\d+\.?\d*', text)
         if numbers:
             return float(numbers[-1])
@@ -40,7 +42,7 @@ class Dataset(ABC):
         
     @classmethod
     @abstractmethod
-    def is_answer_correct(cls, entry: dict, use_transformated_answers:bool=True) -> bool:
+    def is_answer_correct(cls, entry: dict, use_transformated_answers:bool=False) -> bool:
         raise NotImplementedError("Subclasses should implement this method.")
     
     @classmethod

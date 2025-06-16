@@ -1,7 +1,7 @@
 from .llm import LLM
 from abc import ABC, abstractmethod
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline, BitsAndBytesConfig
 from peft import LoraConfig, get_peft_model
 from peft import PeftModel
 import os
@@ -27,15 +27,16 @@ else:
 
 
 class TransformerLLM(LLM):
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, dtype: torch.dtype = torch.float32, quantization: bool = False):
         self.model_name = model_name
         self._tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         self._tokenizer.pad_token = self._tokenizer.eos_token
-        
         self._model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map=device_map_strategy,
             trust_remote_code=True,
+            torch_dtype=dtype,
+            quantization_config=TransformerLLM.get_quantization_config() if quantization else None,
         )
         # Store the actual device the model was loaded to
         if isinstance(self._model.device, torch.device):
@@ -119,3 +120,21 @@ class TransformerLLM(LLM):
         if hasattr(self, '_model') and torch.cuda.is_available():
             del self._model
             torch.cuda.empty_cache()
+
+    @property
+    def pipeline(self):
+        return pipeline(
+            "text-generation",
+            model=self.model,
+            tokenizer=self._tokenizer,
+        )
+    
+    @classmethod
+    def get_quantization_config(cls) -> BitsAndBytesConfig:
+        return BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_storage="uint8",
+        )

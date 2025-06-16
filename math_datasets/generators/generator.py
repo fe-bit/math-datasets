@@ -6,6 +6,10 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2Se
 import torch
 from peft import PeftModel
 from math_datasets.fine_tuning.llm.transformer_llm import TransformerLLM
+from .rewoo import ReWOOModel
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
+
 
 
 class Generate:
@@ -75,3 +79,48 @@ class TransformersGenerate(Generate):
             top_p=self.top_p,
             entry=entry
         )
+
+
+
+class ReWOOGenerate(Generate):
+    def __init__(self, rewoo_model: ReWOOModel, sleep_time: int=5):
+        self.rewoo_model = rewoo_model
+        self.sleep_time = sleep_time
+
+    @classmethod
+    def init_gemini(cls, model_name: str = "gemini-2.0-flash", sleep_time: int = 5):
+        model = ChatGoogleGenerativeAI(
+            model=model_name,
+            temperature=0,
+            max_tokens=None,
+            timeout=None,
+            max_retries=2,
+        )
+        rewoo_model = ReWOOModel(model=model, sleep_time=5)
+        return ReWOOGenerate(rewoo_model=rewoo_model, sleep_time=sleep_time)
+    
+    @classmethod
+    def init_transformer_llm(cls, llm: TransformerLLM, sleep_time: int = 0, with_examples: bool = True):
+        llm.model.eval()  # Ensure the model is in evaluation mode
+        llm_pipeline = HuggingFacePipeline(pipeline=llm.pipeline, model_kwargs={"temperature": 0.0, "max_new_tokens": 512})
+        chat_model = ChatHuggingFace(llm=llm_pipeline)
+        rewoo_model = ReWOOModel(model=chat_model, sleep_time=sleep_time, with_examples=with_examples)
+        return ReWOOGenerate(rewoo_model=rewoo_model, sleep_time=sleep_time)
+
+    def generate(self, prompt, entry: dict[str, str]={}) -> str:
+        counter = 0
+        while True:
+            try:
+                time.sleep(self.sleep_time)
+                resp = self.rewoo_model(prompt)
+                entry["model_history"] = resp
+                return resp[-1]["solve"]["result"]
+            except Exception as e:
+                print(f"Error: {e}")
+                print(f"Retrying in {2*self.sleep_time} seconds...")
+                counter += 1
+                if counter > 1:
+                    entry["model_history"] = "Error occured."
+                    return "Error occured."
+                print("Counter:", counter)
+                time.sleep(2*self.sleep_time)
