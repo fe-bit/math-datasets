@@ -27,7 +27,14 @@ else:
 
 
 class TransformerLLM(LLM):
-    def __init__(self, model_name: str, dtype: torch.dtype = torch.float32, quantization: bool = False):
+    def __init__(self, model_name: str, dtype: torch.dtype = torch.float32, quantization: bool = False, model: AutoModelForCausalLM | None = None, tokenizer: AutoTokenizer | None = None):
+        if model is not None and tokenizer is not None:
+            self._model = model
+            self._tokenizer = tokenizer
+            self.device = next(model.parameters()).device
+            self.model_name = model_name
+            return
+        
         self.model_name = model_name
         self._tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         self._tokenizer.pad_token = self._tokenizer.eos_token
@@ -55,6 +62,10 @@ class TransformerLLM(LLM):
             trust_remote_code=True # Add trust_remote_code if needed
         )
         return model
+    
+    @classmethod
+    def using(cls, model_name: str, model: AutoModelForCausalLM, tokenizer: AutoTokenizer):
+        return cls(model_name=model_name, model=model, tokenizer=tokenizer)
 
     def apply_lora(self, lora_config: LoraConfig):
         self._model = get_peft_model(self._model, lora_config) # type: ignore
