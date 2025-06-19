@@ -83,9 +83,10 @@ class TransformersGenerate(Generate):
 
 
 class ReWOOGenerate(Generate):
-    def __init__(self, rewoo_model: ReWOOModel, sleep_time: int=5):
+    def __init__(self, rewoo_model: ReWOOModel, sleep_time: int=5, retries: int=1):
         self.rewoo_model = rewoo_model
         self.sleep_time = sleep_time
+        self.retries = retries
 
     @classmethod
     def init_gemini(cls, model_name: str = "gemini-2.0-flash", sleep_time: int = 5):
@@ -105,7 +106,7 @@ class ReWOOGenerate(Generate):
         llm_pipeline = HuggingFacePipeline(pipeline=llm.pipeline, model_kwargs={"temperature": 0.0, "max_new_tokens": 512})
         chat_model = ChatHuggingFace(llm=llm_pipeline)
         rewoo_model = ReWOOModel(model=chat_model, sleep_time=sleep_time, with_examples=with_examples)
-        return ReWOOGenerate(rewoo_model=rewoo_model, sleep_time=sleep_time)
+        return ReWOOGenerate(rewoo_model=rewoo_model, sleep_time=sleep_time, retries=0)
 
     def generate(self, prompt, entry: dict[str, str]={}) -> str:
         counter = 0
@@ -116,11 +117,10 @@ class ReWOOGenerate(Generate):
                 entry["model_history"] = resp
                 return resp[-1]["solve"]["result"]
             except Exception as e:
-                print(f"Error: {e}")
-                print(f"Retrying in {2*self.sleep_time} seconds...")
                 counter += 1
-                if counter > 1:
+                if counter > self.retries:
                     entry["model_history"] = "Error occured."
                     return "Error occured."
-                print("Counter:", counter)
+                print(f"Error: {e}")
+                print(f"Retrying in {2*self.sleep_time} seconds...")
                 time.sleep(2*self.sleep_time)
