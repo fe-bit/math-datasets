@@ -1,5 +1,5 @@
 
-from typing import List
+from typing import List, Dict
 from typing_extensions import TypedDict
 import re
 from langchain_core.prompts import ChatPromptTemplate
@@ -50,10 +50,15 @@ class ReWOOModel:
         task = state["task"]
         result = self.planner.invoke({"task": task})
         assistant_response = self.__extract_assistant_response(result.content)
+        matches = ReWOOModel.parse_plan(assistant_response)
+        return {"steps": matches, "plan_string": assistant_response, "message": messages_to_dict([result])}
+    
+    @classmethod
+    def parse_plan(cls, plan: str) -> List[tuple]:
         regex_pattern = r"Plan:\s*(.+)\s*(#E\d+)\s*=\s*(\w+)\s*\[([^\]]+)\]"
         # Find all matches in the sample text
-        matches = re.findall(regex_pattern, assistant_response)
-        return {"steps": matches, "plan_string": assistant_response, "message": messages_to_dict([result])}
+        matches = re.findall(regex_pattern, plan)
+        return matches
     
     def _get_current_task(self, state: ReWOO):
         if "results" not in state or state["results"] is None:
@@ -161,3 +166,82 @@ Task: {task}"""
         else:
             assistant_part = result
         return assistant_part
+    
+
+class PlanExecutor:
+    def follow_plan(self, plan: str) -> List[Dict[str, ReWOO]]:
+        graph = StateGraph(ReWOO)
+        graph.add_node("tool", self.tool_execution)
+        graph.add_node("solve", self.solve)
+        
+        graph.add_edge("solve", END)
+        graph.add_conditional_edges("tool", self._route)
+        graph.add_edge(START, "tool")
+        app = graph.compile()
+        result = []
+        plan_steps = self.parse_plan(plan)
+        status = {"plan_string": plan, "steps": plan_steps}
+        for s in app.stream(status):
+            result.append(s)
+        return result
+    
+    def parse_plan(self, plan: str) -> List[tuple]:
+        regex_pattern = r"Plan:\s*(.+)\s*(#E\d+)\s*=\s*(\w+)\s*\[([^\]]+)\]"
+        # Find all matches in the sample text
+        matches = re.findall(regex_pattern, plan)
+        return matches
+    
+    def _get_current_task(self, state: ReWOO):
+        if "results" not in state or state["results"] is None:
+            return 1
+        if len(state["results"]) == len(state["steps"]):
+            return None
+        else:
+            return len(state["results"]) + 1
+
+    def tool_execution(self, state: ReWOO):
+        """Worker node that executes the tools of a given plan."""
+        _step = self._get_current_task(state)
+        _, step_name, tool, tool_input = state["steps"][_step - 1]
+        _results = (state["results"] or {}) if "results" in state else {}
+        
+        for k, v in _results.items():
+            tool_input = tool_input.replace(k, v)
+        
+        if tool == "Calculator":
+            try:
+                expr = tool_input
+                for k, v in _results.items():
+                    # Remove '#' and ensure variables are strings or numbers
+                    expr = expr.replace(k, str(v))
+                    expr = expr.replace(k.lstrip('#'), str(v))
+                
+                expr = expr.replace("\"", "").replace("'", "")  # Remove quotes if any
+                # Parse and evaluate safely
+                evaluated = sympify(expr).evalf()
+                result = str(evaluated)
+            except SympifyError as e:
+                result = f"SymPy Error: {e}"
+            except Exception as e:
+                result = f"Error: {e}"
+        else:
+            raise ValueError
+        _results[step_name] = str(result)
+        return {"results": _results}
+
+    def solve(self, state: ReWOO):
+        try:
+            last_value = float(list(state["results"].values())[-1])
+            return {"result": last_value}
+        except (ValueError, IndexError):
+            result = "Error: Unable to retrieve the final result from the steps."
+            return {"result": result, "message": []}
+    
+    def _route(self, state):
+        _step = self._get_current_task(state)
+        if _step is None:
+            # We have executed all tasks
+            return "solve"
+        else:
+            # We are still executing tasks, loop back to the "tool" node
+            return "tool"
