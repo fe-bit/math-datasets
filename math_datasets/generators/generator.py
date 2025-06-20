@@ -107,6 +107,13 @@ class ReWOOGenerate(Generate):
         chat_model = ChatHuggingFace(llm=llm_pipeline)
         rewoo_model = ReWOOModel(model=chat_model, sleep_time=sleep_time, with_examples=with_examples)
         return ReWOOGenerate(rewoo_model=rewoo_model, sleep_time=sleep_time, retries=0)
+    
+    @classmethod
+    def get_chat_huggingface(cls, llm: TransformerLLM, sleep_time: int = 0):
+        llm.model.eval()  # Ensure the model is in evaluation mode
+        llm_pipeline = HuggingFacePipeline(pipeline=llm.pipeline, model_kwargs={"temperature": 0.0, "max_new_tokens": 512})
+        chat_model = ChatHuggingFace(llm=llm_pipeline)
+        return chat_model
 
     def generate(self, prompt, entry: dict[str, str]={}) -> str:
         counter = 0

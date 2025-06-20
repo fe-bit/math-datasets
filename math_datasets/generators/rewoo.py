@@ -127,7 +127,7 @@ class ReWOOModel:
         graph.add_edge(START, "plan")
         app = graph.compile()
         return app
-    
+
     @classmethod
     def get_prompt(cls, with_examples: bool) -> str:
         prompt =  """For the following task, make a detailed step-by-step plan to solve the problem.  
@@ -166,7 +166,34 @@ Task: {task}"""
         else:
             assistant_part = result
         return assistant_part
+
+class PlanGenerator:
+    def __init__(self, model: ChatHuggingFace|ChatGoogleGenerativeAI, sleep_time: int=10, with_examples: bool=True):
+        self.model = model
+        prompt = ReWOOModel.get_prompt(with_examples=with_examples)
+        prompt_template = ChatPromptTemplate.from_messages([("user", prompt)])
+        self.planner = prompt_template | self.model
     
+    def generate_plan(self, task: str) -> str:
+        result = self.planner.invoke({"task": task}).content
+        assistant_response = self.__extract_assistant_response(result)
+        return assistant_response
+
+    def generate_plan_batch(self, tasks: list[str]) -> list[str]:
+        try:
+            inputs = [{"task": task} for task in tasks]
+            results = self.planner.batch(inputs)
+            return [self.__extract_assistant_response(r.content) for r in results]
+        except Exception as e:
+            return []
+
+    def __extract_assistant_response(self, result: str) -> str:
+        if "<|im_start|>assistant" in result:
+            assistant_part = result.split("<|im_start|>assistant")[-1]
+        else:
+            assistant_part = result
+        return assistant_part
+
 
 class PlanExecutor:
     def follow_plan(self, plan: str) -> List[Dict[str, ReWOO]]:

@@ -138,6 +138,7 @@ class TransformerLLM(LLM):
             "text-generation",
             model=self.model,
             tokenizer=self._tokenizer,
+            batch_size=8
         )
     
     @classmethod
