@@ -8,8 +8,10 @@ from sympy import sympify
 from sympy.core.sympify import SympifyError
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import ChatHuggingFace
+from langchain_ollama import ChatOllama
 from langchain.schema import messages_to_dict
 import time
+
 
 class ReWOO(TypedDict):
     task: str
@@ -27,7 +29,7 @@ class ReWOO(TypedDict):
 # Plan: Calculate Tina's total daily pay. Add her regular pay and her overtime pay for each day. #E5 = Calculator[#E3 + #E4]
 # Plan: Finally, calculate Tina's total earnings for the week. Multiply her total daily pay by the number of days she works (5 days). #E6 = Calculator[#E5 * 5]
 class ReWOOModel:
-    def __init__(self, model: ChatHuggingFace|ChatGoogleGenerativeAI, sleep_time: int=10, with_examples: bool=True):
+    def __init__(self, model: ChatHuggingFace|ChatGoogleGenerativeAI|ChatOllama, sleep_time: int=10, with_examples: bool=True):
         self.model = model
         self.sleep_time = sleep_time
         prompt = ReWOOModel.get_prompt(with_examples=with_examples)
@@ -152,6 +154,7 @@ Plan: [Reasoning step 1] #E1 = Calculator[some input]
 Plan: [Reasoning step 2 using #E1] #E2 = Calculator[...]
 
 ---"""
+            
         prompt += """
 
 Begin!  

@@ -7,7 +7,13 @@ from peft import PeftModel
 import os
 from trl import setup_chat_format
 from typing import Any
+import logging
 
+try:
+    import bitsandbytes as bnb
+    HAS_BITSANDBYTES = True
+except ImportError:
+    HAS_BITSANDBYTES = False
 
 if torch.cuda.is_available():
     print("CUDA is available! Using GPU.")
@@ -138,15 +144,19 @@ class TransformerLLM(LLM):
             "text-generation",
             model=self.model,
             tokenizer=self._tokenizer,
-            batch_size=8
+            batch_size=1
         )
     
     @classmethod
-    def get_quantization_config(cls) -> BitsAndBytesConfig:
-        return BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_storage="uint8",
-        )
+    def get_quantization_config(cls) -> BitsAndBytesConfig|None:
+        if HAS_BITSANDBYTES:
+            return BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_storage="uint8",
+            )
+        else:
+            logging.warning("bitsandbytes not available. Quantization features will be disabled.")
+            return None

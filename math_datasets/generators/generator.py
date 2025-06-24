@@ -2,14 +2,12 @@ import ollama
 from abc import abstractmethod
 from google import genai
 import time
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM
-import torch
-from peft import PeftModel
 from math_datasets.fine_tuning.llm.transformer_llm import TransformerLLM
 from .rewoo import ReWOOModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
-
+from langchain_ollama import ChatOllama
+from typing import Any
 
 
 class Generate:
@@ -18,13 +16,17 @@ class Generate:
         """
         Generate a response using the Ollama model.
         """
+    
+    @classmethod
+    def add_metrics(cls, entry: dict[str, Any]) -> dict[str, str]:
+        return entry
 
 class OllamaGenerate(Generate):
     def __init__(self, model_name: str):
         self.model_name = model_name
         
     def generate(self, prompt:str,  entry: dict[str, str]={}) -> str:
-        return ollama.generate(
+        resp = ollama.generate(
             model=self.model_name,
             prompt=prompt,
             options={
@@ -34,7 +36,25 @@ class OllamaGenerate(Generate):
                 "num_predict": 512,
                 "stop": ["<|eot|>"],
             }
-        )["response"]
+        )
+        entry["usage_metadata"] = {
+            "input_tokens": resp["prompt_eval_count"],
+            "output_tokens": resp["eval_count"],
+            "total_tokens": resp["prompt_eval_count"] + resp["eval_count"]
+        }
+        return resp["response"]
+    
+    @classmethod
+    def add_metrics(cls, entry: dict[str, Any]) -> dict[str, str]:
+        try:
+            entry["input_tokens"] = entry["usage_metadata"]["input_tokens"]
+            entry["output_tokens"] = entry["usage_metadata"]["output_tokens"]
+            entry["total_tokens"] = entry["usage_metadata"]["total_tokens"]
+        except:
+            entry["input_tokens"] = None
+            entry["output_tokens"] = None
+            entry["total_tokens"] = None
+        return entry
 
 
 class GeminiGenerate(Generate):
@@ -44,7 +64,7 @@ class GeminiGenerate(Generate):
         self.wait_frequency = wait_frequency
         self.num_retries = num_retries
     
-    def generate(self, prompt:str,  entry: dict[str, str]={}) -> str:
+    def generate(self, prompt:str,  entry: dict[str, Any]={}) -> str:
         num_retries = self.num_retries
         while num_retries is None or num_retries > 0:
             try:
@@ -60,6 +80,13 @@ class GeminiGenerate(Generate):
                 time.sleep(self.wait_frequency*10)
 
         return "Error occured."
+    
+    @classmethod
+    def add_metrics(cls, entry: dict[str, Any]) -> dict[str, str]:
+        entry["input_tokens"] = entry["usage_metadata"]["prompt_token_count"]
+        entry["total_token_count"] = entry["usage_metadata"]["total_token_count"]
+        entry["output_tokens"] = entry["total_token_count"] - entry["input_tokens"]
+        return entry
 
 class TransformersGenerate(Generate):
     def __init__(self, model: TransformerLLM, temperature=None, top_k=None, top_p=None, max_new_tokens=512):
@@ -79,7 +106,18 @@ class TransformersGenerate(Generate):
             top_p=self.top_p,
             entry=entry
         )
-
+    
+    @classmethod
+    def add_metrics(cls, entry: dict[str, str]) -> dict[str, Any]:
+        try:
+            entry["input_tokens"] = entry["usage_metadata"]["input_tokens"]
+            entry["output_tokens"] = entry["usage_metadata"]["output_tokens"]
+            entry["total_tokens"] = entry["usage_metadata"]["total_tokens"]
+        except:
+            entry["input_tokens"] = None
+            entry["output_tokens"] = None
+            entry["total_tokens"] = None
+        return entry
 
 
 class ReWOOGenerate(Generate):
@@ -99,6 +137,12 @@ class ReWOOGenerate(Generate):
         )
         rewoo_model = ReWOOModel(model=model, sleep_time=5)
         return ReWOOGenerate(rewoo_model=rewoo_model, sleep_time=sleep_time)
+    
+    @classmethod
+    def init_ollama(cls, model_name: str, with_examples: bool = True):
+        model = ChatOllama(model=model_name, temperature=0, num_predict=1024)
+        rewoo_model = ReWOOModel(model=model, sleep_time=0, with_examples=with_examples)
+        return ReWOOGenerate(rewoo_model=rewoo_model, retries=0, sleep_time=0)
     
     @classmethod
     def init_transformer_llm(cls, llm: TransformerLLM, sleep_time: int = 0, with_examples: bool = True):
@@ -131,3 +175,20 @@ class ReWOOGenerate(Generate):
                 print(f"Error: {e}")
                 print(f"Retrying in {2*self.sleep_time} seconds...")
                 time.sleep(2*self.sleep_time)
+    
+    @classmethod
+    def add_metrics(cls, entry: dict[str, Any]) -> dict[str, Any]:
+        model_history = entry.get("model_history")
+        if model_history:
+            if model_history == "Error occured.":
+                entry["format_correct"] = False
+                entry["input_tokens"] = None
+                entry["output_tokens"] = None
+                entry["total_tokens"] = None
+            else:
+                entry["format_correct"] = True
+                usage_metadata = model_history[0]["plan"]["message"][0]["data"]["usage_metadata"]
+                entry["input_tokens"] = usage_metadata["input_tokens"]
+                entry["output_tokens"] = usage_metadata["output_tokens"]
+                entry["total_tokens"] = usage_metadata["total_tokens"]
+        return entry

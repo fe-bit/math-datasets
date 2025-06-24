@@ -1,8 +1,9 @@
 from math_datasets.datasets.base_dataset import Dataset
-from math_datasets.generators.generate_responses import get_output_file
+from math_datasets.generators.generate_responses import get_output_file, Generate
 import json
 import numpy as np
 import pandas as pd
+from typing import Type
 
 
 def evaluate_entry(entry, dataset: Dataset, use_transformated_answers:bool=False):
@@ -53,7 +54,7 @@ def evaluate_all(model_names: list[str], datasets: list[Dataset], save_dir: str,
     return df
 
 
-def evaluate_detail(model_name:str, dataset: Dataset, save_dir:str, use_transformated_answers=False) -> pd.DataFrame:
+def evaluate_detail(model_name:str, dataset: Type[Dataset], save_dir:str, use_transformated_answers=False, additional_metrics: Type[Generate]|None=None) -> pd.DataFrame:
     """Evaluate a single model on a single dataset and return the results as a DataFrame."""
     output_path = get_output_file(save_dir, model_name, dataset)
     try:
@@ -68,6 +69,8 @@ def evaluate_detail(model_name:str, dataset: Dataset, save_dir:str, use_transfor
         try:
             is_correct = evaluate_entry(entry, dataset, use_transformated_answers)
             entry["is_correct"] = is_correct
+            if additional_metrics:
+                entry = additional_metrics.add_metrics(entry)
             evaluated_entries.append(entry)
         except Exception as e:
             pass
