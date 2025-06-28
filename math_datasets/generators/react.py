@@ -53,4 +53,5 @@ class ReactGenerate(Generate):
             entry["output_tokens"] = output_tokens
             entry["total_tokens"] = total_tokens
             entry["format_correct"] = True
+            entry["reasoning"] = None
         return entry

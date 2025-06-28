@@ -69,6 +69,8 @@ def evaluate_detail(model_name:str, dataset: Type[Dataset], save_dir:str, use_tr
         try:
             is_correct = evaluate_entry(entry, dataset, use_transformated_answers)
             entry["is_correct"] = is_correct
+            entry["question"] = dataset.get_input_text(entry)
+            entry["target_answer"] = dataset.get_output_text(entry)
             if additional_metrics:
                 entry = additional_metrics.add_metrics(entry)
             evaluated_entries.append(entry)

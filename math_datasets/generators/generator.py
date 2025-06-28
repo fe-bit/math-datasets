@@ -25,7 +25,7 @@ class OllamaGenerate(Generate):
     def __init__(self, model_name: str):
         self.model_name = model_name
         
-    def generate(self, prompt:str,  entry: dict[str, str]={}) -> str:
+    def generate(self, prompt:str,  entry: dict[str, Any]={}) -> str:
         resp = ollama.generate(
             model=self.model_name,
             prompt=prompt,
@@ -50,10 +50,12 @@ class OllamaGenerate(Generate):
             entry["input_tokens"] = entry["usage_metadata"]["input_tokens"]
             entry["output_tokens"] = entry["usage_metadata"]["output_tokens"]
             entry["total_tokens"] = entry["usage_metadata"]["total_tokens"]
+            entry["reasoning"] = entry["response"]
         except:
             entry["input_tokens"] = None
             entry["output_tokens"] = None
             entry["total_tokens"] = None
+            entry["reasoning"] = entry["response"]
         return entry
 
 
@@ -86,6 +88,7 @@ class GeminiGenerate(Generate):
         entry["input_tokens"] = entry["usage_metadata"]["prompt_token_count"]
         entry["total_token_count"] = entry["usage_metadata"]["total_token_count"]
         entry["output_tokens"] = entry["total_token_count"] - entry["input_tokens"]
+        entry["reasoning"] = entry["response"]
         return entry
 
 class TransformersGenerate(Generate):
@@ -113,10 +116,12 @@ class TransformersGenerate(Generate):
             entry["input_tokens"] = entry["usage_metadata"]["input_tokens"]
             entry["output_tokens"] = entry["usage_metadata"]["output_tokens"]
             entry["total_tokens"] = entry["usage_metadata"]["total_tokens"]
+            entry["reasoning"] = entry["response"]
         except:
             entry["input_tokens"] = None
             entry["output_tokens"] = None
             entry["total_tokens"] = None
+            entry["reasoning"] = None
         return entry
 
 
@@ -185,10 +190,12 @@ class ReWOOGenerate(Generate):
                 entry["input_tokens"] = None
                 entry["output_tokens"] = None
                 entry["total_tokens"] = None
+                entry["reasoning"] = None
             else:
                 entry["format_correct"] = True
                 usage_metadata = model_history[0]["plan"]["message"][0]["data"]["usage_metadata"]
                 entry["input_tokens"] = usage_metadata["input_tokens"]
                 entry["output_tokens"] = usage_metadata["output_tokens"]
                 entry["total_tokens"] = usage_metadata["total_tokens"]
+                entry["reasoning"] = model_history[0]["plan"]["plan_string"]
         return entry
