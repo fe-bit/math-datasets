@@ -132,36 +132,44 @@ class ReWOOModel:
 
     @classmethod
     def get_prompt(cls, with_examples: bool) -> str:
-        prompt =  """For the following task, make a detailed step-by-step plan to solve the problem.  
-For each step, choose **one tool** to retrieve or calculate the necessary information.  
-The tool output should be stored in a variable like #E1, #E2, etc., which can be used in later steps.
+        prompt =  """You are a reasoning agent tasked with solving **mathematical word problems** by translating each step into concrete arithmetic expressions.  
+    Your job is to create a **step-by-step plan**, where each step identifies **what needs to be calculated** and how to do it using the available tool.
 
-Tools available:
-(1) Calculator[input]: Use this for basic arithmetic operations (e.g., addition, subtraction, multiplication, division). Input must be a valid math expression like "290 / 2".
+    Available tool:
+    (1) Calculator[input]: Use for arithmetic expressions (e.g., addition, subtraction, multiplication, division). Input must be a valid math expression like "290 / 2".
 
-**Do not solve the problem directly. Only write the plan and tool inputs.**  
-Each step must follow this format:
-Plan: [describe the reasoning for the step] #EX = Tool[tool input]
+    **Guidelines:**
+    - Do **not** solve the task directly.
+    - Instead, break it down into small logical steps.
+    - Each step must include a natural language explanation (**Plan**) and an associated calculation using the Calculator.
+    - Store each tool output in a variable like `#E1`, `#E2`, etc., which can be reused in later steps.
 
----"""
+    **Format per step:**
+    Plan: [Explain the reasoning behind the step]  
+    #EX = Calculator[math expression]
+
+    ---
+    """
         if with_examples:
             prompt += """
-Example (format only):
+    Example (format only):
 
-Task: [A problem]
+    Task: A train travels 180 km in 3 hours. What is its average speed?
 
-Plan: [Reasoning step 1] #E1 = Calculator[some input]
-Plan: [Reasoning step 2 using #E1] #E2 = Calculator[...]
+    Plan: To find average speed, divide total distance by time.  
+    #E1 = Calculator[180 / 3]
 
----"""
-            
+    ---
+
+    """
         prompt += """
 
-Begin!  
-Describe your plans with rich details. Each Plan must be followed by exactly one #E.
+    Begin now. Think carefully about quantities, units, and relationships.  
+    Convert language into concrete math operations step by step.
 
-Task: {task}"""
+    Task: {task}"""
         return prompt
+
 
     def __extract_assistant_response(self, result: str) -> str:
         if "<|im_start|>assistant" in result:

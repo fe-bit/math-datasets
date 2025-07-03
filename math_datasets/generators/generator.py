@@ -145,7 +145,7 @@ class ReWOOGenerate(Generate):
     
     @classmethod
     def init_ollama(cls, model_name: str, with_examples: bool = True):
-        model = ChatOllama(model=model_name, temperature=0, num_predict=1024)
+        model = ChatOllama(model=model_name, temperature=0, num_predict=512)
         rewoo_model = ReWOOModel(model=model, sleep_time=0, with_examples=with_examples)
         return ReWOOGenerate(rewoo_model=rewoo_model, retries=0, sleep_time=0)
     
