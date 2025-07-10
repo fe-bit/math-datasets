@@ -54,7 +54,7 @@ def evaluate_all(model_names: list[str], datasets: list[Dataset], save_dir: str,
     return df
 
 
-def evaluate_detail(model_name:str, dataset: Type[Dataset], save_dir:str, use_transformated_answers=False, additional_metrics: Type[Generate]|None=None) -> pd.DataFrame:
+def evaluate_detail(model_name:str, dataset: Type[Dataset], save_dir:str, use_transformated_answers=False, additional_metrics: Type[Generate]|None=None, use_first_n:int|None=None) -> pd.DataFrame:
     """Evaluate a single model on a single dataset and return the results as a DataFrame."""
     output_path = get_output_file(save_dir, model_name, dataset)
     try:
@@ -64,6 +64,8 @@ def evaluate_detail(model_name:str, dataset: Type[Dataset], save_dir:str, use_tr
         print(f"❌ {model_name}: No output file found for {dataset.name}.")
         return pd.DataFrame()
     
+    if use_first_n is not None:
+        entries = entries[:use_first_n]
     evaluated_entries = []
     for entry in entries:
         try:

@@ -1,0 +1,2 @@
+
+MAX_NEW_TOKENS = 2048

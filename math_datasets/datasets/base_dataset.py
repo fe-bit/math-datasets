@@ -6,7 +6,7 @@ from datasets.dataset_dict import DatasetDict
 class Dataset(ABC):
     prompt = None
     answer = None
-    name = None
+    name: str
     priority = None
     ds = None
     examples = None

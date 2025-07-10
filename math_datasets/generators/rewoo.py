@@ -132,43 +132,42 @@ class ReWOOModel:
 
     @classmethod
     def get_prompt(cls, with_examples: bool) -> str:
-        prompt =  """You are a reasoning agent tasked with solving **mathematical word problems** by translating each step into concrete arithmetic expressions.  
-    Your job is to create a **step-by-step plan**, where each step identifies **what needs to be calculated** and how to do it using the available tool.
+        prompt = """You are a helpful assistant that solves math word problems by breaking them down into small steps.  
+    Each step has:
+    - A Plan: a short explanation of what to calculate.
+    - A Calculator call: an exact arithmetic expression to compute.
 
-    Available tool:
-    (1) Calculator[input]: Use for arithmetic expressions (e.g., addition, subtraction, multiplication, division). Input must be a valid math expression like "290 / 2".
+    Use the tool:
+    Calculator[input] → solves arithmetic like "180 / 3", "12 * 4", or "300 - 125".
 
-    **Guidelines:**
-    - Do **not** solve the task directly.
-    - Instead, break it down into small logical steps.
-    - Each step must include a natural language explanation (**Plan**) and an associated calculation using the Calculator.
-    - Store each tool output in a variable like `#E1`, `#E2`, etc., which can be reused in later steps.
+    Rules:
+    - Do NOT give the final answer directly.
+    - Think step by step.
+    - Use one Calculator call per step.
+    - Save results as variables like #E1, #E2, etc.
 
-    **Format per step:**
-    Plan: [Explain the reasoning behind the step]  
+    Step format:
+    Plan: [what to calculate and why]  
     #EX = Calculator[math expression]
 
-    ---
     """
         if with_examples:
             prompt += """
-    Example (format only):
+    Example:
 
     Task: A train travels 180 km in 3 hours. What is its average speed?
 
-    Plan: To find average speed, divide total distance by time.  
+    Plan: To find the average speed, divide the distance by the time.  
     #E1 = Calculator[180 / 3]
-
-    ---
-
     """
         prompt += """
 
-    Begin now. Think carefully about quantities, units, and relationships.  
-    Convert language into concrete math operations step by step.
+    Now solve the following:
 
-    Task: {task}"""
+    Task: {task}
+    """
         return prompt
+
 
 
     def __extract_assistant_response(self, result: str) -> str:

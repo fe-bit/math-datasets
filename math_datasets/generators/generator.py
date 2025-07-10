@@ -8,7 +8,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from langchain_ollama import ChatOllama
 from typing import Any
-
+from math_datasets.globals import MAX_NEW_TOKENS
 
 class Generate:
     @abstractmethod
@@ -22,9 +22,10 @@ class Generate:
         return entry
 
 class OllamaGenerate(Generate):
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, num_tokens: int = MAX_NEW_TOKENS):
         self.model_name = model_name
-        
+        self.num_tokens = num_tokens
+
     def generate(self, prompt:str,  entry: dict[str, Any]={}) -> str:
         resp = ollama.generate(
             model=self.model_name,
@@ -33,7 +34,7 @@ class OllamaGenerate(Generate):
                 "temperature": 0,
                 "top_p": 1,
                 "top_k": 0,
-                "num_predict": 512,
+                "num_predict": self.num_tokens,
                 "stop": ["<|eot|>"],
             }
         )
@@ -92,7 +93,7 @@ class GeminiGenerate(Generate):
         return entry
 
 class TransformersGenerate(Generate):
-    def __init__(self, model: TransformerLLM, temperature=None, top_k=None, top_p=None, max_new_tokens=512):
+    def __init__(self, model: TransformerLLM, temperature=None, top_k=None, top_p=None, max_new_tokens=MAX_NEW_TOKENS):
         self.model = model
 
         self.temperature = temperature
@@ -145,14 +146,14 @@ class ReWOOGenerate(Generate):
     
     @classmethod
     def init_ollama(cls, model_name: str, with_examples: bool = True):
-        model = ChatOllama(model=model_name, temperature=0, num_predict=512)
+        model = ChatOllama(model=model_name, temperature=0, num_predict=MAX_NEW_TOKENS)
         rewoo_model = ReWOOModel(model=model, sleep_time=0, with_examples=with_examples)
         return ReWOOGenerate(rewoo_model=rewoo_model, retries=0, sleep_time=0)
     
     @classmethod
     def init_transformer_llm(cls, llm: TransformerLLM, sleep_time: int = 0, with_examples: bool = True):
         llm.model.eval()  # Ensure the model is in evaluation mode
-        llm_pipeline = HuggingFacePipeline(pipeline=llm.pipeline, model_kwargs={"temperature": 0.0, "max_new_tokens": 512})
+        llm_pipeline = HuggingFacePipeline(pipeline=llm.pipeline, model_kwargs={"temperature": 0.0, "max_new_tokens": MAX_NEW_TOKENS})
         chat_model = ChatHuggingFace(llm=llm_pipeline)
         rewoo_model = ReWOOModel(model=chat_model, sleep_time=sleep_time, with_examples=with_examples)
         return ReWOOGenerate(rewoo_model=rewoo_model, sleep_time=sleep_time, retries=0)
@@ -160,7 +161,7 @@ class ReWOOGenerate(Generate):
     @classmethod
     def get_chat_huggingface(cls, llm: TransformerLLM, sleep_time: int = 0):
         llm.model.eval()  # Ensure the model is in evaluation mode
-        llm_pipeline = HuggingFacePipeline(pipeline=llm.pipeline, model_kwargs={"temperature": 0.0, "max_new_tokens": 512})
+        llm_pipeline = HuggingFacePipeline(pipeline=llm.pipeline, model_kwargs={"temperature": 0.0, "max_new_tokens": MAX_NEW_TOKENS})
         chat_model = ChatHuggingFace(llm=llm_pipeline)
         return chat_model
 
