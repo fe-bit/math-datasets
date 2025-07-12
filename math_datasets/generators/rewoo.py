@@ -11,7 +11,7 @@ from langchain_huggingface import ChatHuggingFace
 from langchain_ollama import ChatOllama
 from langchain.schema import messages_to_dict
 import time
-
+from pathlib import Path
 
 class ReWOO(TypedDict):
     task: str
@@ -29,34 +29,41 @@ class ReWOO(TypedDict):
 # Plan: Calculate Tina's total daily pay. Add her regular pay and her overtime pay for each day. #E5 = Calculator[#E3 + #E4]
 # Plan: Finally, calculate Tina's total earnings for the week. Multiply her total daily pay by the number of days she works (5 days). #E6 = Calculator[#E5 * 5]
 class ReWOOModel:
-    def __init__(self, model: ChatHuggingFace|ChatGoogleGenerativeAI|ChatOllama, sleep_time: int=10, with_examples: bool=True):
+    def __init__(self, model: ChatHuggingFace|ChatGoogleGenerativeAI|ChatOllama, model_name: str, sleep_time: int=10, with_examples: bool=True):
         self.model = model
         self.sleep_time = sleep_time
-        prompt = ReWOOModel.get_prompt(with_examples=with_examples)
+        prompt = ReWOOModel.get_prompt(with_examples=with_examples, model=model_name)
+        self.model_name = model_name
 
         prompt_template = ChatPromptTemplate.from_messages([("user", prompt)])
         self.planner = prompt_template | self.model
     
     def __call__(self, task: str, silent:bool=True, wait=True) -> str:
         result = []
-        app = self.get_graph()
-        for s in app.stream({"task": task}):
-            if not silent:
-                print(s)
-                print("---")
-            result.append(s)
-            time.sleep(self.sleep_time)
+        try:
+            app = self.get_graph()
+            for s in app.stream({"task": task}):
+                if not silent:
+                    print(s)
+                    print("---")
+                result.append(s)
+                time.sleep(self.sleep_time)
+        except Exception as e:
+            pass
         return result
 
     def get_plan(self, state: ReWOO):
         task = state["task"]
         result = self.planner.invoke({"task": task})
         assistant_response = self.__extract_assistant_response(result.content)
+
         matches = ReWOOModel.parse_plan(assistant_response)
         return {"steps": matches, "plan_string": assistant_response, "message": messages_to_dict([result])}
     
     @classmethod
     def parse_plan(cls, plan: str) -> List[tuple]:
+        # remove <think> tags
+        plan = re.sub(r'<think>.*?</think>', '', plan, flags=re.DOTALL)
         regex_pattern = r"Plan:\s*(.+)\s*(#E\d+)\s*=\s*(\w+)\s*\[([^\]]+)\]"
         # Find all matches in the sample text
         matches = re.findall(regex_pattern, plan)
@@ -119,6 +126,7 @@ class ReWOOModel:
     
     def get_graph(self):
         graph = StateGraph(ReWOO)
+        
         graph.add_node("plan", self.get_plan)
         graph.add_node("tool", self.tool_execution)
         graph.add_node("solve", self.solve)
@@ -131,40 +139,20 @@ class ReWOOModel:
         return app
 
     @classmethod
-    def get_prompt(cls, with_examples: bool) -> str:
-        prompt = """You are a helpful assistant that solves math word problems by breaking them down into small steps.  
-    Each step has:
-    - A Plan: a short explanation of what to calculate.
-    - A Calculator call: an exact arithmetic expression to compute.
+    def get_prompt(cls, with_examples: bool, model: str) -> str:
+        path_to_prompt = Path(__file__).parent / "rewoo_prompts" / f"{model}.txt"
+        if path_to_prompt.exists():
+            with open(path_to_prompt, "r") as f:
+                prompt = f.read()
+        else:
+            print(f"Warning: Prompt file {path_to_prompt} not found, using default prompt.")
+            path_to_prompt = Path(__file__).parent / "rewoo_prompts" / "default.txt"
+            with open(path_to_prompt, "r") as f:
+                prompt = f.read()
 
-    Use the tool:
-    Calculator[input] → solves arithmetic like "180 / 3", "12 * 4", or "300 - 125".
-
-    Rules:
-    - Do NOT give the final answer directly.
-    - Think step by step.
-    - Use one Calculator call per step.
-    - Save results as variables like #E1, #E2, etc.
-
-    Step format:
-    Plan: [what to calculate and why]  
-    #EX = Calculator[math expression]
-
-    """
-        if with_examples:
-            prompt += """
-    Example:
-
-    Task: A train travels 180 km in 3 hours. What is its average speed?
-
-    Plan: To find the average speed, divide the distance by the time.  
-    #E1 = Calculator[180 / 3]
-    """
         prompt += """
-
-    Now solve the following:
-
-    Task: {task}
+Now solve the following problem:
+{task}
     """
         return prompt
 
@@ -175,6 +163,10 @@ class ReWOOModel:
             assistant_part = result.split("<|im_start|>assistant")[-1]
         else:
             assistant_part = result
+        
+        # Remove <think>...</think> tags
+        
+        
         return assistant_part
 
 class PlanGenerator:
@@ -202,6 +194,10 @@ class PlanGenerator:
             assistant_part = result.split("<|im_start|>assistant")[-1]
         else:
             assistant_part = result
+        
+        # Remove <think>...</think> tags
+        assistant_part = re.sub(r'<think>.*?</think>', '', assistant_part, flags=re.DOTALL)
+        
         return assistant_part
 
 

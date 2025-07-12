@@ -32,10 +32,8 @@ class OllamaGenerate(Generate):
             prompt=prompt,
             options={
                 "temperature": 0,
-                "top_p": 1,
-                "top_k": 0,
+                "do_sample": False,
                 "num_predict": self.num_tokens,
-                "stop": ["<|eot|>"],
             }
         )
         entry["usage_metadata"] = {
@@ -141,13 +139,13 @@ class ReWOOGenerate(Generate):
             timeout=None,
             max_retries=2,
         )
-        rewoo_model = ReWOOModel(model=model, sleep_time=5)
+        rewoo_model = ReWOOModel(model=model, sleep_time=5, model_name=model_name)
         return ReWOOGenerate(rewoo_model=rewoo_model, sleep_time=sleep_time)
     
     @classmethod
     def init_ollama(cls, model_name: str, with_examples: bool = True):
         model = ChatOllama(model=model_name, temperature=0, num_predict=MAX_NEW_TOKENS)
-        rewoo_model = ReWOOModel(model=model, sleep_time=0, with_examples=with_examples)
+        rewoo_model = ReWOOModel(model=model, sleep_time=0, with_examples=with_examples, model_name=model_name)
         return ReWOOGenerate(rewoo_model=rewoo_model, retries=0, sleep_time=0)
     
     @classmethod
@@ -155,7 +153,7 @@ class ReWOOGenerate(Generate):
         llm.model.eval()  # Ensure the model is in evaluation mode
         llm_pipeline = HuggingFacePipeline(pipeline=llm.pipeline, model_kwargs={"temperature": 0.0, "max_new_tokens": MAX_NEW_TOKENS})
         chat_model = ChatHuggingFace(llm=llm_pipeline)
-        rewoo_model = ReWOOModel(model=chat_model, sleep_time=sleep_time, with_examples=with_examples)
+        rewoo_model = ReWOOModel(model=chat_model, sleep_time=sleep_time, with_examples=with_examples, model_name=model_name)
         return ReWOOGenerate(rewoo_model=rewoo_model, sleep_time=sleep_time, retries=0)
     
     @classmethod
@@ -166,21 +164,14 @@ class ReWOOGenerate(Generate):
         return chat_model
 
     def generate(self, prompt, entry: dict[str, str]={}) -> str:
-        counter = 0
-        while True:
-            try:
-                time.sleep(self.sleep_time)
-                resp = self.rewoo_model(prompt)
-                entry["model_history"] = resp
-                return resp[-1]["solve"]["result"]
-            except Exception as e:
-                counter += 1
-                if counter > self.retries:
-                    entry["model_history"] = "Error occured."
-                    return "Error occured."
-                print(f"Error: {e}")
-                print(f"Retrying in {2*self.sleep_time} seconds...")
-                time.sleep(2*self.sleep_time)
+        resp = self.rewoo_model(prompt)
+        try:
+            answer = resp[-1]["solve"]["result"]
+        except Exception as e:
+            answer = "Error occured."
+        entry["model_history"] = resp
+        return answer
+
     
     @classmethod
     def add_metrics(cls, entry: dict[str, Any]) -> dict[str, Any]:
